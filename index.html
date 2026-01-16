@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>My Pocket - รายเดือน</title>
+    <title>My Pocket - รายรับรายจ่าย</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -118,12 +118,12 @@
 
     <script>
         // --- CONFIG ---
-        // 🔴 ใส่ URL ของ GAS อันเดิมได้เลย
+        // 🔴🔴🔴 เปลี่ยน URL เป็นของคุณที่นี่ 🔴🔴🔴
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEFYXNvwU8TxkpDM6K84BNW4ehFGbyx5QvNla0v28Lb9InHjEfM9OdNhRzHUNKOqyv7g/exec'; 
 
-        // --- STATE VARIABLES ---
-        let allData = [];           // เก็บข้อมูลทั้งหมดที่โหลดมา
-        let viewDate = new Date();  // วันที่ปัจจุบันที่กำลังดูอยู่ (เช่น ตอนนี้ดูเดือน ม.ค.)
+        // --- STATE ---
+        let allData = [];
+        let viewDate = new Date();
 
         // --- ELEMENTS ---
         const modal = document.getElementById('entryModal');
@@ -131,16 +131,15 @@
         const form = document.getElementById('accountForm');
         const list = document.getElementById('transactionList');
 
-        // --- CORE FUNCTIONS ---
+        // --- FUNCTIONS ---
 
-        // 1. โหลดข้อมูลทั้งหมดมาเก็บไว้ก่อน
         async function fetchData() {
             try {
                 list.innerHTML = `<div class="text-center text-gray-400 mt-10"><i class="ph ph-spinner animate-spin text-3xl"></i><br>กำลังซิงค์ข้อมูล...</div>`;
                 const response = await fetch(SCRIPT_URL);
                 allData = await response.json();
                 
-                // เรียงข้อมูลตามวันเวลา (เก่า -> ใหม่) เพื่อให้คำนวณยอดยกมาถูกต้อง
+                // เรียงข้อมูลตามเวลา
                 allData.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
                 
                 renderCurrentMonth();
@@ -150,62 +149,48 @@
             }
         }
 
-        // 2. ฟังก์ชันหัวใจหลัก: คำนวณและแสดงผลตามเดือนที่เลือก
         function renderCurrentMonth() {
-            // วันแรกของเดือนที่เลือก
             const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-            // วันสุดท้ายของเดือนที่เลือก
             const endOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0, 23, 59, 59);
 
-            // ตัวแปรคำนวณ
-            let prevBalance = 0;   // ยอดยกมา
-            let monthIncome = 0;   // รายรับเดือนนี้
-            let monthExpense = 0;  // รายจ่ายเดือนนี้
-            let currentTransactions = []; // รายการของเดือนนี้
+            let prevBalance = 0;
+            let monthIncome = 0;
+            let monthExpense = 0;
+            let currentTransactions = [];
 
-            // วนลูปข้อมูลทั้งหมดเพื่อแยกแยะ
             allData.forEach(item => {
                 const itemDate = new Date(item.Timestamp);
                 const amount = Number(item.Amount);
                 const isIncome = item.Type === 'รายรับ';
                 
-                // ถ้าเป็นข้อมูลเก่ากว่าเดือนนี้ -> เอาไปรวมใน "ยอดยกมา"
                 if (itemDate < startOfMonth) {
                     if (isIncome) prevBalance += amount;
                     else prevBalance -= amount;
                 }
-                // ถ้าอยู่ในเดือนนี้ -> เอามาคำนวณและแสดงผล
                 else if (itemDate >= startOfMonth && itemDate <= endOfMonth) {
                     if (isIncome) monthIncome += amount;
                     else monthExpense += amount;
-                    
                     currentTransactions.push(item);
                 }
             });
 
-            // คำนวณยอดสุทธิ (ยอดยกมา + รายรับ - รายจ่าย)
             const netBalance = prevBalance + monthIncome - monthExpense;
 
-            // อัปเดต UI หัวข้อเดือน
+            // Update Labels
             const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
             document.getElementById('monthLabel').innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear() + 543}`;
-
-            // อัปเดตตัวเลข
             document.getElementById('prevBalanceDisplay').innerText = formatMoney(prevBalance);
             document.getElementById('incomeDisplay').innerText = formatMoney(monthIncome);
             document.getElementById('expenseDisplay').innerText = formatMoney(monthExpense);
             document.getElementById('netBalanceDisplay').innerText = formatMoney(netBalance);
 
-            // แสดงรายการ (กลับด้านเอาล่าสุดขึ้นบนเฉพาะในลิสต์)
             renderList(currentTransactions.reverse());
         }
 
-        // ฟังก์ชันช่วยจัดรูปแบบเงิน (ใส่ลูกน้ำ)
         function formatMoney(num) {
             return num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
         }
 
-        // แสดง List รายการลงหน้าจอ
         function renderList(data) {
             list.innerHTML = '';
             if (data.length === 0) {
@@ -219,7 +204,6 @@
                 const icon = isIncome ? 'ph-arrow-down-left' : 'ph-arrow-up-right';
                 const sign = isIncome ? '+' : '-';
                 
-                // แปลงวันที่ให้สวยงาม
                 const d = new Date(item.Timestamp);
                 const dateText = `${d.getDate()} ${["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][d.getMonth()]}`;
 
@@ -246,8 +230,6 @@
             });
         }
 
-        // --- NAVIGATION FUNCTIONS ---
-
         function changeMonth(step) {
             viewDate.setMonth(viewDate.getMonth() + step);
             renderCurrentMonth();
@@ -257,8 +239,6 @@
             viewDate = new Date();
             renderCurrentMonth();
         }
-
-        // --- MODAL & FORM FUNCTIONS ---
 
         function openModal() {
             modal.classList.remove('hidden');
@@ -281,33 +261,34 @@
             const formData = new FormData(form);
             const data = Object.fromEntries(formData);
 
+            // 🟢 จุดแก้ไขที่สำคัญที่สุด: ส่งเวลาปัจจุบันไปให้ Server
+            data.timestamp = new Date().toISOString(); 
+
             try {
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify(data)
                 });
                 
-                // หลังบันทึกเสร็จ ให้รีเฟรชข้อมูลใหม่ทั้งหมด
                 await fetchData(); 
-                
                 form.reset();
                 closeModal();
-                resetToCurrentMonth(); // เด้งกลับมาดูเดือนปัจจุบัน
+                resetToCurrentMonth(); 
                 
             } catch (error) {
                 alert('เกิดข้อผิดพลาด');
+                console.error(error);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
         });
 
-        // เริ่มต้นทำงาน
+        // Start
         fetchData();
     </script>
 
     <style>
-        /* Animation เล็กๆ */
         @keyframes fade-in {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
