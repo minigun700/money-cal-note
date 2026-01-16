@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Pocket - รายเดือน</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans h-screen flex flex-col">
+
+    <div class="bg-indigo-600 text-white pt-8 pb-6 px-6 rounded-b-3xl shadow-lg shrink-0 z-10 sticky top-0">
+        <div class="flex justify-between items-center mb-6">
+            <button onclick="changeMonth(-1)" class="p-2 bg-indigo-500 rounded-full hover:bg-indigo-400 active:scale-95">
+                <i class="ph ph-caret-left text-xl"></i>
+            </button>
+            
+            <div class="text-center" onclick="resetToCurrentMonth()">
+                <div class="text-lg font-bold flex items-center gap-2 justify-center cursor-pointer">
+                    <span id="monthLabel">loading...</span>
+                    <i class="ph ph-calendar text-sm opacity-70"></i>
+                </div>
+            </div>
+
+            <button onclick="changeMonth(1)" class="p-2 bg-indigo-500 rounded-full hover:bg-indigo-400 active:scale-95">
+                <i class="ph ph-caret-right text-xl"></i>
+            </button>
+        </div>
+
+        <div class="space-y-3">
+            <div class="flex justify-between items-center text-indigo-200 text-sm px-2">
+                <span>ยอดยกมาจากเดือนก่อน</span>
+                <span id="prevBalanceDisplay">+0</span>
+            </div>
+
+            <div class="bg-white/10 backdrop-blur-sm p-4 rounded-2xl text-center border border-white/10">
+                <div class="text-xs text-indigo-200 mb-1">เงินคงเหลือสุทธิ (เดือนนี้)</div>
+                <div class="text-4xl font-bold tracking-tight" id="netBalanceDisplay">0</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-green-500/20 p-2 rounded-xl flex items-center justify-between px-3 border border-green-500/30">
+                    <span class="text-xs text-green-100">รับ</span>
+                    <span class="font-bold text-green-100" id="incomeDisplay">0</span>
+                </div>
+                <div class="bg-red-500/20 p-2 rounded-xl flex items-center justify-between px-3 border border-red-500/30">
+                    <span class="text-xs text-red-100">จ่าย</span>
+                    <span class="font-bold text-red-100" id="expenseDisplay">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="px-4 py-2 flex justify-end">
+        <button onclick="fetchData()" class="text-xs text-gray-400 flex items-center gap-1 hover:text-indigo-600">
+            <i class="ph ph-arrows-clockwise"></i> อัปเดตข้อมูลล่าสุด
+        </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto no-scrollbar px-4 pb-20 space-y-3" id="transactionList">
+        </div>
+
+    <div class="fixed bottom-6 right-6 z-20">
+        <button onclick="openModal()" class="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-3xl hover:bg-indigo-700 active:scale-90 transition transform hover:-translate-y-1">
+            <i class="ph ph-plus"></i>
+        </button>
+    </div>
+
+    <div id="entryModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-end sm:items-center justify-center transition-opacity duration-300">
+        <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl transform transition-transform duration-300 translate-y-full" id="modalContent">
+            
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">บันทึกรายการ</h3>
+                <button onclick="closeModal()" class="bg-gray-100 p-2 rounded-full hover:bg-gray-200">
+                    <i class="ph ph-x text-xl"></i>
+                </button>
+            </div>
+
+            <form id="accountForm" class="space-y-4">
+                <div class="flex bg-gray-100 p-1 rounded-xl">
+                    <label class="flex-1 text-center cursor-pointer">
+                        <input type="radio" name="type" value="รายรับ" class="hidden peer">
+                        <div class="py-3 rounded-lg text-gray-500 font-medium peer-checked:bg-green-500 peer-checked:text-white transition shadow-sm">รายรับ</div>
+                    </label>
+                    <label class="flex-1 text-center cursor-pointer">
+                        <input type="radio" name="type" value="รายจ่าย" class="hidden peer" checked>
+                        <div class="py-3 rounded-lg text-gray-500 font-medium peer-checked:bg-red-500 peer-checked:text-white transition shadow-sm">รายจ่าย</div>
+                    </label>
+                </div>
+
+                <input type="text" name="category" placeholder="หมวดหมู่ (เช่น ค่าข้าว)" required 
+                       class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+
+                <input type="number" name="amount" placeholder="0.00" required inputmode="decimal"
+                       class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-2xl font-bold text-center text-indigo-600 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+
+                <input type="text" name="note" placeholder="โน้ตเพิ่มเติม" 
+                       class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+
+                <button type="submit" id="submitBtn" class="w-full bg-indigo-600 text-white p-4 rounded-xl font-bold text-lg mt-2 shadow-lg hover:bg-indigo-700 active:scale-95 transition">
+                    บันทึก
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        // 🔴 ใส่ URL ของ GAS อันเดิมได้เลย
+        const SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE'; 
+
+        // --- STATE VARIABLES ---
+        let allData = [];           // เก็บข้อมูลทั้งหมดที่โหลดมา
+        let viewDate = new Date();  // วันที่ปัจจุบันที่กำลังดูอยู่ (เช่น ตอนนี้ดูเดือน ม.ค.)
+
+        // --- ELEMENTS ---
+        const modal = document.getElementById('entryModal');
+        const modalContent = document.getElementById('modalContent');
+        const form = document.getElementById('accountForm');
+        const list = document.getElementById('transactionList');
+
+        // --- CORE FUNCTIONS ---
+
+        // 1. โหลดข้อมูลทั้งหมดมาเก็บไว้ก่อน
+        async function fetchData() {
+            try {
+                list.innerHTML = `<div class="text-center text-gray-400 mt-10"><i class="ph ph-spinner animate-spin text-3xl"></i><br>กำลังซิงค์ข้อมูล...</div>`;
+                const response = await fetch(SCRIPT_URL);
+                allData = await response.json();
+                
+                // เรียงข้อมูลตามวันเวลา (เก่า -> ใหม่) เพื่อให้คำนวณยอดยกมาถูกต้อง
+                allData.sort((a, b) => new Date(a.Timestamp) - new Date(b.Timestamp));
+                
+                renderCurrentMonth();
+            } catch (error) {
+                console.error(error);
+                list.innerHTML = `<div class="text-center text-red-400 mt-10">โหลดไม่สำเร็จ</div>`;
+            }
+        }
+
+        // 2. ฟังก์ชันหัวใจหลัก: คำนวณและแสดงผลตามเดือนที่เลือก
+        function renderCurrentMonth() {
+            // วันแรกของเดือนที่เลือก
+            const startOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+            // วันสุดท้ายของเดือนที่เลือก
+            const endOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0, 23, 59, 59);
+
+            // ตัวแปรคำนวณ
+            let prevBalance = 0;   // ยอดยกมา
+            let monthIncome = 0;   // รายรับเดือนนี้
+            let monthExpense = 0;  // รายจ่ายเดือนนี้
+            let currentTransactions = []; // รายการของเดือนนี้
+
+            // วนลูปข้อมูลทั้งหมดเพื่อแยกแยะ
+            allData.forEach(item => {
+                const itemDate = new Date(item.Timestamp);
+                const amount = Number(item.Amount);
+                const isIncome = item.Type === 'รายรับ';
+                
+                // ถ้าเป็นข้อมูลเก่ากว่าเดือนนี้ -> เอาไปรวมใน "ยอดยกมา"
+                if (itemDate < startOfMonth) {
+                    if (isIncome) prevBalance += amount;
+                    else prevBalance -= amount;
+                }
+                // ถ้าอยู่ในเดือนนี้ -> เอามาคำนวณและแสดงผล
+                else if (itemDate >= startOfMonth && itemDate <= endOfMonth) {
+                    if (isIncome) monthIncome += amount;
+                    else monthExpense += amount;
+                    
+                    currentTransactions.push(item);
+                }
+            });
+
+            // คำนวณยอดสุทธิ (ยอดยกมา + รายรับ - รายจ่าย)
+            const netBalance = prevBalance + monthIncome - monthExpense;
+
+            // อัปเดต UI หัวข้อเดือน
+            const monthNames = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+            document.getElementById('monthLabel').innerText = `${monthNames[viewDate.getMonth()]} ${viewDate.getFullYear() + 543}`;
+
+            // อัปเดตตัวเลข
+            document.getElementById('prevBalanceDisplay').innerText = formatMoney(prevBalance);
+            document.getElementById('incomeDisplay').innerText = formatMoney(monthIncome);
+            document.getElementById('expenseDisplay').innerText = formatMoney(monthExpense);
+            document.getElementById('netBalanceDisplay').innerText = formatMoney(netBalance);
+
+            // แสดงรายการ (กลับด้านเอาล่าสุดขึ้นบนเฉพาะในลิสต์)
+            renderList(currentTransactions.reverse());
+        }
+
+        // ฟังก์ชันช่วยจัดรูปแบบเงิน (ใส่ลูกน้ำ)
+        function formatMoney(num) {
+            return num.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        // แสดง List รายการลงหน้าจอ
+        function renderList(data) {
+            list.innerHTML = '';
+            if (data.length === 0) {
+                list.innerHTML = `<div class="text-center text-gray-400 mt-20 opacity-50"><i class="ph ph-receipt text-6xl"></i><p class="mt-2">เดือนนี้ยังไม่มีรายการ</p></div>`;
+                return;
+            }
+
+            data.forEach(item => {
+                const isIncome = item.Type === 'รายรับ';
+                const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
+                const icon = isIncome ? 'ph-arrow-down-left' : 'ph-arrow-up-right';
+                const sign = isIncome ? '+' : '-';
+                
+                // แปลงวันที่ให้สวยงาม
+                const d = new Date(item.Timestamp);
+                const dateText = `${d.getDate()} ${["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][d.getMonth()]}`;
+
+                const div = document.createElement('div');
+                div.className = "bg-white p-4 rounded-2xl shadow-sm flex items-center justify-between animate-fade-in";
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center ${isIncome ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                            <i class="ph ${icon} text-lg"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-gray-800">${item.Category}</div>
+                            <div class="text-xs text-gray-400 flex gap-2">
+                                <span>${dateText}</span>
+                                ${item.Note ? `<span class="bg-gray-100 px-1 rounded text-gray-500 truncate max-w-[100px]">${item.Note}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="font-bold text-lg ${colorClass}">
+                        ${sign}${Number(item.Amount).toLocaleString()}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        // --- NAVIGATION FUNCTIONS ---
+
+        function changeMonth(step) {
+            viewDate.setMonth(viewDate.getMonth() + step);
+            renderCurrentMonth();
+        }
+
+        function resetToCurrentMonth() {
+            viewDate = new Date();
+            renderCurrentMonth();
+        }
+
+        // --- MODAL & FORM FUNCTIONS ---
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            setTimeout(() => modalContent.classList.remove('translate-y-full'), 10);
+        }
+
+        function closeModal() {
+            modalContent.classList.add('translate-y-full');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> บันทึก...';
+
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                
+                // หลังบันทึกเสร็จ ให้รีเฟรชข้อมูลใหม่ทั้งหมด
+                await fetchData(); 
+                
+                form.reset();
+                closeModal();
+                resetToCurrentMonth(); // เด้งกลับมาดูเดือนปัจจุบัน
+                
+            } catch (error) {
+                alert('เกิดข้อผิดพลาด');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+
+        // เริ่มต้นทำงาน
+        fetchData();
+    </script>
+
+    <style>
+        /* Animation เล็กๆ */
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out forwards;
+        }
+    </style>
+</body>
+</html>
